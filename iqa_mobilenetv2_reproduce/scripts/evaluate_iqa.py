@@ -1,4 +1,5 @@
 import argparse
+import csv
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -14,7 +15,8 @@ from common import build_model, build_transforms, ensure_output_dirs, get_device
 
 def evaluate(model, loader, criterion, device):
     model.eval()
-    total_loss, targets_all, probs_all, preds_all = 0.0, [], [], []
+    total_loss, targets_all, probs_all, preds_all, paths_all = 0.0, [], [], [], []
+    offset = 0
     with torch.no_grad():
         for images, targets in tqdm(loader):
             images, targets = images.to(device), targets.to(device)
@@ -26,6 +28,9 @@ def evaluate(model, loader, criterion, device):
             targets_all.extend(targets.cpu().numpy().tolist())
             probs_all.extend(probs.cpu().numpy().tolist())
             preds_all.extend(preds.cpu().numpy().tolist())
+            batch_size = images.size(0)
+            paths_all.extend(path for path, _ in loader.dataset.samples[offset:offset + batch_size])
+            offset += batch_size
     precision, recall, f1, _ = precision_recall_fscore_support(targets_all, preds_all, average="binary", zero_division=0)
     auc = roc_auc_score(targets_all, probs_all)
     return {
@@ -35,7 +40,7 @@ def evaluate(model, loader, criterion, device):
         "recall": recall,
         "f1": f1,
         "auc": auc,
-    }, targets_all, preds_all
+    }, targets_all, preds_all, probs_all, paths_all
 
 
 def main():
@@ -53,11 +58,21 @@ def main():
     ckpt = torch.load(project_path(cfg, args.checkpoint), map_location=device)
     model.load_state_dict(ckpt["model_state"])
     criterion = torch.nn.CrossEntropyLoss()
-    metrics, y_true, y_pred = evaluate(model, loader, criterion, device)
+    metrics, y_true, y_pred, y_prob, paths = evaluate(model, loader, criterion, device)
 
     metrics_dir = project_path(cfg, cfg["output"]["metrics"])
     figures_dir = project_path(cfg, cfg["output"]["figures"])
     save_json(metrics_dir / "test_metrics.json", metrics)
+    with open(metrics_dir / "test_predictions.csv", "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=["path", "true_label", "pred_label", "soiling_probability"])
+        writer.writeheader()
+        for path, true_idx, pred_idx, prob in zip(paths, y_true, y_pred, y_prob):
+            writer.writerow({
+                "path": str(path),
+                "true_label": dataset.classes[true_idx],
+                "pred_label": dataset.classes[pred_idx],
+                "soiling_probability": prob,
+            })
     report = classification_report(y_true, y_pred, target_names=dataset.classes, digits=4)
     (metrics_dir / "classification_report.txt").write_text(report, encoding="utf-8")
     cm = confusion_matrix(y_true, y_pred)

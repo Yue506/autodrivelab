@@ -2,6 +2,8 @@ project_name: iqa_mobilenetv2
 seed: 42
 
 data:
+  raw_normal_dir: ../data/IQA_data/normal
+  raw_soiling_dir: ../data/IQA_data/soiling
   root: data/woodscape_iqa
   train_dir: data/woodscape_iqa/train
   val_dir: data/woodscape_iqa/val
@@ -18,7 +20,7 @@ model:
 
 train:
   image_size: 224
-  batch_size: 64
+  batch_size: 128
   epochs: 200
   num_workers: 8
   optimizer: adamw
@@ -29,6 +31,15 @@ train:
   early_stopping_patience: 30
   metric_for_best: f1
   amp: true
+  resume: true
+  class_weight: balanced
+  freeze_backbone_epochs: 3
+
+split:
+  ratios:
+    train: 0.70
+    val: 0.15
+    test: 0.15
 
 augmentation:
   train:

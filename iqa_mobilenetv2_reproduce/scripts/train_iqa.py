@@ -25,13 +25,17 @@ def run_epoch(model, loader, criterion, device, optimizer=None, scaler=None):
             images, targets = images.to(device), targets.to(device)
             if training:
                 optimizer.zero_grad(set_to_none=True)
-            with torch.cuda.amp.autocast(enabled=scaler is not None):
+            with torch.cuda.amp.autocast(enabled=(scaler is not None and scaler.is_enabled())):
                 logits = model(images)
                 loss = criterion(logits, targets)
             if training:
-                scaler.scale(loss).backward()
-                scaler.step(optimizer)
-                scaler.update()
+                if scaler is not None and scaler.is_enabled():
+                    scaler.scale(loss).backward()
+                    scaler.step(optimizer)
+                    scaler.update()
+                else:
+                    loss.backward()
+                    optimizer.step()
             probs = torch.softmax(logits, dim=1)[:, 1]
             preds = logits.argmax(dim=1)
             total_loss += loss.item() * images.size(0)
@@ -100,7 +104,13 @@ def main():
     val_loader = DataLoader(val_ds, batch_size=cfg["train"]["batch_size"], shuffle=False,
                             num_workers=cfg["train"]["num_workers"], pin_memory=True)
     model = build_model(cfg).to(device)
-    criterion = torch.nn.CrossEntropyLoss(label_smoothing=cfg["train"].get("label_smoothing", 0.0))
+    class_weight = None
+    if cfg["train"].get("class_weight") == "balanced":
+        counts = np.bincount([label for _, label in train_ds.samples], minlength=cfg["data"]["num_classes"])
+        class_weight = torch.tensor(counts.sum() / np.maximum(counts, 1), dtype=torch.float32, device=device)
+        class_weight = class_weight / class_weight.mean()
+        print("Class weights:", class_weight.detach().cpu().tolist())
+    criterion = torch.nn.CrossEntropyLoss(weight=class_weight, label_smoothing=cfg["train"].get("label_smoothing", 0.0))
     optimizer = torch.optim.AdamW(model.parameters(), lr=cfg["train"]["learning_rate"],
                                   weight_decay=cfg["train"]["weight_decay"])
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=cfg["train"]["epochs"])
@@ -109,11 +119,34 @@ def main():
 
     ckpt_dir = project_path(cfg, cfg["output"]["checkpoints"])
     log_path = project_path(cfg, cfg["output"]["logs"]) / "train_log.csv"
-    rows, best_score, stale = [], -1.0, 0
+    start_epoch, rows, best_score, stale = 1, [], -1.0, 0
     metric_for_best = cfg["train"].get("metric_for_best", "f1")
     fields = ["epoch", "lr", "train_loss", "train_accuracy", "val_loss", "val_accuracy",
               "val_precision", "val_recall", "val_f1", "val_auc"]
-    for epoch in range(1, cfg["train"]["epochs"] + 1):
+    last_path = ckpt_dir / "last.pt"
+    if cfg["train"].get("resume", True) and last_path.exists():
+        ckpt = torch.load(last_path, map_location=device)
+        model.load_state_dict(ckpt["model_state"])
+        optimizer.load_state_dict(ckpt["optimizer_state"])
+        scheduler.load_state_dict(ckpt["scheduler_state"])
+        start_epoch = int(ckpt["epoch"]) + 1
+        if log_path.exists():
+            with open(log_path, "r", newline="", encoding="utf-8") as f:
+                rows = [{k: float(v) if k != "epoch" else int(v) for k, v in row.items()} for row in csv.DictReader(f)]
+        if rows:
+            best_score = max(float(row[f"val_{metric_for_best}"]) for row in rows)
+        print(f"Resuming from epoch {start_epoch}; best {metric_for_best}={best_score:.4f}")
+
+    freeze_epochs = int(cfg["train"].get("freeze_backbone_epochs", 0))
+    for epoch in range(start_epoch, cfg["train"]["epochs"] + 1):
+        if freeze_epochs and epoch == start_epoch:
+            for name, param in model.named_parameters():
+                param.requires_grad = name.startswith("classifier")
+            print(f"Backbone frozen through epoch {freeze_epochs}.")
+        if freeze_epochs and epoch == freeze_epochs + 1:
+            for param in model.parameters():
+                param.requires_grad = True
+            print("Backbone unfrozen for full fine-tuning.")
         train_metrics = run_epoch(model, train_loader, criterion, device, optimizer, scaler)
         val_metrics = run_epoch(model, val_loader, criterion, device)
         scheduler.step()

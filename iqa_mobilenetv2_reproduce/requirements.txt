@@ -11,3 +11,4 @@ opencv-python
 pyyaml
 tensorboard
 onnx
+onnx
