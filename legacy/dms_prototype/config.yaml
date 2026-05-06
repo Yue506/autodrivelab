@@ -1,0 +1,25 @@
+# ==========================================
+# DMS Module Configuration (Graduation Project)
+# ==========================================
+
+# 1. 模型与设备配置
+hardware:
+  camera_source: 0
+  model_path: "yolov8n.pt"
+
+# 2. 开机自适应标定 (Calibration - 解决个体眼型差异)
+calibration:
+  duration_frames: 100       # 标定采集帧数 (约 3-5 秒)
+  sensitivity_factor: 0.75   # 判定阈值 = 个体睁眼基准均值 * 0.75
+
+# 3. 算法判定阈值 (Logic Mapping)
+thresholds:
+  yawn_ratio: 0.6            # 嘴巴纵横比 (预留打哈欠接口)
+  distraction_angle: 30      # 头部偏转角 (预留分心接口)
+  confirm_frames: 10         # 消除抖动：连续 N 帧异常才触发报警
+
+# 4. 系统功能特性
+features:
+  enable_alarm: true         # 声光报警总开关
+  save_csv: true             # 是否生成导出报表
+  csv_path: "./logs/dms_report.csv"  # 报表导出绝对/相对路径

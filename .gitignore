@@ -1,0 +1,72 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+env/
+
+# ROS2 / colcon
+build/
+install/
+log/
+*.bag
+*.db3
+*.mcap
+
+# Runtime outputs
+logs/
+runs/
+outputs/
+artifacts/
+reports/*.csv
+
+# Datasets and generated samples
+data/nuscenes/**
+data/raw/**
+data/processed/**
+data/edge_cases/**
+!data/nuscenes/.gitkeep
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/edge_cases/.gitkeep
+
+# Models and large binaries
+models/**
+!models/.gitkeep
+*.pt
+*.pth
+*.onnx
+*.engine
+*.weights
+*.ckpt
+*.bin
+
+# Local secrets / machine config
+.env
+.env.*
+*.local.yaml
+*.secret.yaml
+
+# Documents generated during drafting
+*.tmp
+~$*.docx
+
+# Binary drafting/reference files kept locally
+*.docx
+legacy/adas_prototype/data/**
+!legacy/adas_prototype/data/.gitkeep

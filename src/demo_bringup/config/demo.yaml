@@ -1,0 +1,7 @@
+signal_gateway:
+  ros__parameters:
+    rate_hz: 10.0
+
+data_loop:
+  ros__parameters:
+    edge_case_dir: data/edge_cases

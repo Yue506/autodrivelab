@@ -1,0 +1,24 @@
+from glob import glob
+from setuptools import find_packages, setup
+
+package_name = "arbiter_can"
+
+setup(
+    name=package_name,
+    version="0.1.0",
+    packages=find_packages(exclude=["test"]),
+    data_files=[
+        ("share/ament_index/resource_index/packages", ["resource/" + package_name]),
+        ("share/" + package_name, ["package.xml"]),
+        ("share/" + package_name + "/config", glob("config/*.yaml")),
+        ("share/" + package_name + "/launch", glob("launch/*.launch.py")),
+    ],
+    install_requires=["setuptools"],
+    zip_safe=True,
+    maintainer="ron",
+    maintainer_email="ron@example.com",
+    description="AutoDriveLab package: " + package_name,
+    license="MIT",
+    tests_require=["pytest"],
+    entry_points={"console_scripts": ["arbiter_can_node = arbiter_can.arbiter_can_node:main"]},
+)

@@ -1,0 +1,6 @@
+std_msgs/Header header
+float32 speed_mps
+float32 yaw_rate_radps
+float32 acceleration_mps2
+float32 steering_angle_rad
+int8 turn_signal

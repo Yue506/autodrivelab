@@ -1,0 +1,7 @@
+numpy>=1.23
+opencv-python>=4.8
+PyYAML>=6.0
+pyquaternion>=0.9.9
+nuscenes-devkit>=1.1.11
+mediapipe>=0.10.0
+ultralytics>=8.0.0

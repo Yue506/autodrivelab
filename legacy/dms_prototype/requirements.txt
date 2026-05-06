@@ -1,0 +1,10 @@
+# 核心视觉与图像处理
+opencv-python>=4.8.0
+numpy>=1.21.0
+
+# 深度学习与感知模型
+mediapipe>=0.10.0
+ultralytics>=8.0.0
+
+# 配置文件解析
+PyYAML>=6.0

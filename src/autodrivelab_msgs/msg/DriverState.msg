@@ -1,0 +1,9 @@
+std_msgs/Header header
+uint8 danger_level
+string event_type
+float32 fatigue_score
+float32 distraction_score
+bool eyes_closed
+bool phone_calling
+bool smoking
+bool yawning
