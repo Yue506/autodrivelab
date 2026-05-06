@@ -5,7 +5,16 @@
 - Dataset: WoodScape fisheye soiling dataset
 - Task: binary classification
 - Classes: normal, soiling
-- Data root: `data/woodscape_iqa`
+- Split strategy: stratified 70% train / 15% validation / 15% test with seed `42`
+
+| Split | Class | Count | Valid Images |
+|---|---|---:|---:|
+| train | normal | 5764 | 5764 |
+| train | soiling | 3500 | 3500 |
+| val | normal | 1235 | 1235 |
+| val | soiling | 750 | 750 |
+| test | normal | 1235 | 1235 |
+| test | soiling | 750 | 750 |
 
 ## Model
 
@@ -18,27 +27,35 @@
 - Image size: 224 x 224
 - Optimizer: AdamW
 - Scheduler: Cosine learning rate scheduler
-- Epochs: 200
-- Batch size: 64
+- Epochs configured: 200
+- Epochs completed: 6
+- Batch size: 128
+- Best validation F1: 1.0000
 
 ## Test Results
 
-Pending execution. Results will be read from `outputs/iqa_mobilenetv2/metrics/test_metrics.json` after training and evaluation.
-
 | Metric | Value |
 |---|---:|
-| Test Loss | pending |
-| Accuracy | pending |
-| Precision | pending |
-| Recall | pending |
-| F1 Score | pending |
-| AUC | pending |
+| Test Loss | 0.0096 |
+| Accuracy | 0.9985 |
+| Precision | 0.9987 |
+| Recall | 0.9973 |
+| F1 Score | 0.9980 |
+| AUC | 1.0000 |
 
 ## Output Figures
 
-- Training curves
-- Confusion matrix
-- Qualitative inference samples
+- Training curves: `outputs/iqa_mobilenetv2/figures/training_curves.png`
+- Confusion matrix: `outputs/iqa_mobilenetv2/figures/confusion_matrix.png`
+- Qualitative inference samples: `outputs/iqa_mobilenetv2/figures/qualitative_iqa_samples.png`
+
+## Artifacts
+
+- Best checkpoint: `outputs/iqa_mobilenetv2/checkpoints/best.pt`
+- Last checkpoint: `outputs/iqa_mobilenetv2/checkpoints/last.pt`
+- TorchScript: `outputs/iqa_mobilenetv2/checkpoints/iqa_mobilenetv2_torchscript.pt`
+- ONNX: `outputs/iqa_mobilenetv2/checkpoints/iqa_mobilenetv2.onnx`
+- Test predictions: `outputs/iqa_mobilenetv2/metrics/test_predictions.csv`
 
 ## Notes
 
