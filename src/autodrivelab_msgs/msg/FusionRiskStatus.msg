@@ -1,5 +1,6 @@
 builtin_interfaces/Time stamp
 string frame_id
+int32 frame_index
 
 int32 unified_risk_level
 string primary_source
