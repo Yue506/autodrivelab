@@ -12,6 +12,11 @@ import cv2
 import numpy as np
 import yaml
 
+try:
+    from demo.bev_render import draw_bev_scene
+except ModuleNotFoundError:
+    from .bev_render import draw_bev_scene
+
 
 CAMERAS = [
     "CAM_FRONT",
@@ -560,32 +565,14 @@ def put_text(img, text: str, xy: tuple[int, int], scale=0.55, color=(255, 255, 2
 
 def draw_bev(canvas, objects: list[dict], fusion_level: int):
     x0, y0, w, h = 30, 390, 760, 300
-    cv2.rectangle(canvas, (x0, y0), (x0 + w, y0 + h), (24, 28, 34), -1)
-    put_text(canvas, "BEV FSD View (GT boxes as pseudo perception)", (x0 + 16, y0 + 28), 0.55, (220, 230, 240), 1)
-    origin = (x0 + w // 2, y0 + h - 35)
-    scale = 5.0
-    for meter in [10, 20, 30, 40, 50]:
-        yy = int(origin[1] - meter * scale)
-        cv2.line(canvas, (x0 + 20, yy), (x0 + w - 20, yy), (55, 62, 70), 1)
-        put_text(canvas, f"{meter}m", (x0 + 25, yy - 4), 0.38, (130, 140, 150), 1)
-    cv2.rectangle(canvas, (origin[0] - 12, origin[1] - 22), (origin[0] + 12, origin[1] + 22), (210, 210, 210), -1)
-    put_text(canvas, "EGO", (origin[0] - 18, origin[1] + 38), 0.4, (230, 230, 230), 1)
-    for obj in objects:
-        x = float(obj["x"])
-        y = float(obj["y"])
-        if x < -10 or x > 50 or abs(y) > 25:
-            continue
-        px = int(origin[0] - y * scale)
-        py = int(origin[1] - x * scale)
-        level = int(obj.get("risk_level", 0))
-        color = risk_color(level) if level > 0 else (100, 160, 220)
-        if obj["class_name"] == "pedestrian":
-            cv2.circle(canvas, (px, py), 5, color, -1)
-        else:
-            cv2.rectangle(canvas, (px - 7, py - 12), (px + 7, py + 12), color, 2 if level > 0 else 1)
-        if level >= 3:
-            cv2.circle(canvas, (px, py), 18, color, 2)
-    cv2.rectangle(canvas, (x0, y0), (x0 + w, y0 + h), risk_color(fusion_level), 2)
+    draw_bev_scene(
+        canvas,
+        (x0, y0, w, h),
+        objects,
+        target_object_id=None,
+        border_level=fusion_level,
+        title="BEV FSD View",
+    )
 
 
 def draw_risk_panel(canvas, adas, dms, iqa, fusion):

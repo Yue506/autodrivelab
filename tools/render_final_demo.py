@@ -10,6 +10,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from demo.bev_render import draw_bev_scene
+
 
 CAMERAS = ["CAM_FRONT_LEFT", "CAM_FRONT", "CAM_FRONT_RIGHT", "CAM_BACK_LEFT", "CAM_BACK", "CAM_BACK_RIGHT"]
 LEVEL_TEXT = ["SAFE", "INFO", "ATTENTION", "WARNING", "EMERGENCY"]
@@ -83,34 +85,14 @@ def draw_camera_grid(canvas, scene_dir, frame, iqa):
 
 def draw_bev(canvas, objects, adas):
     x0, y0, w, h = 30, 585, 1183, 355
-    panel(canvas, (x0, y0, x0 + w, y0 + h), (19, 24, 31), (62, 70, 82), 1)
-    text(canvas, "BEV FSD-style View", (x0 + 18, y0 + 34), 0.7, (235, 238, 242), 2)
-    origin = (x0 + w // 2, y0 + h - 42)
-    scale = 6.0
-    for meter in [10, 20, 30, 50]:
-        yy = int(origin[1] - meter * scale)
-        cv2.line(canvas, (x0 + 25, yy), (x0 + w - 25, yy), (50, 58, 68), 1)
-        text(canvas, f"{meter}m", (x0 + 35, yy - 5), 0.42, (140, 150, 160), 1)
-    for lane_y in [-3.5, 0, 3.5]:
-        px = int(origin[0] - lane_y * scale)
-        cv2.line(canvas, (px, y0 + 70), (px, y0 + h - 20), (66, 72, 82), 1, cv2.LINE_AA)
-    cv2.rectangle(canvas, (origin[0] - 16, origin[1] - 28), (origin[0] + 16, origin[1] + 28), (220, 220, 220), -1)
-    target = adas.get("target_object_id")
-    for obj in objects.get("objects", []):
-        x, y = float(obj.get("x", 0)), float(obj.get("y", 0))
-        if x < -10 or x > 50 or abs(y) > 25:
-            continue
-        px = int(origin[0] - y * scale)
-        py = int(origin[1] - x * scale)
-        risk = obj.get("object_id") == target or obj.get("is_front_risk")
-        c = color(int(obj.get("risk_level", 0))) if risk else (110, 155, 210)
-        if obj.get("class_name") == "pedestrian":
-            cv2.circle(canvas, (px, py), 6, c, -1)
-        else:
-            cv2.rectangle(canvas, (px - 9, py - 14), (px + 9, py + 14), c, 2 if risk else 1)
-        if risk:
-            cv2.circle(canvas, (px, py), 22, c, 2)
-            text(canvas, f"RISK {obj.get('distance', 0):.1f}m", (px + 14, py - 10), 0.42, c, 1)
+    draw_bev_scene(
+        canvas,
+        (x0, y0, w, h),
+        objects.get("objects", []),
+        target_object_id=adas.get("target_object_id"),
+        border_level=int(adas.get("adas_level", 0) or 0),
+        title="BEV FSD-style View",
+    )
 
 
 def draw_risk_panel(canvas, adas, dms, iqa, fusion):
@@ -180,7 +162,9 @@ def write_readme(scene_dir, out, width, height, fps, events, source_label):
         "## Video\n\n"
         f"- Output: `{out}`\n- Resolution: {width}x{height}\n- FPS: {fps}\n- Includes: cover, six camera views, BEV, risk panel, event timeline, ending summary.\n\n"
         "## Key Events\n\n" + "\n".join(f"- {e}" for e in events) + "\n\n"
-        f"## Boundaries\n\nADAS/TTC source: {source_label}. DMS uses a scripted timeline because nuScenes has no cabin camera. IQA comes from the custom normal/soiling test dataset, not nuScenes images.\n",
+        f"## Boundaries\n\nADAS/TTC source: {source_label}. DMS uses a scripted timeline because nuScenes has no cabin camera. IQA comes from the custom normal/soiling test dataset, not nuScenes images.\n\n"
+        "## BEV Rendering Scale Fix\n\n"
+        "This renderer draws the ego car with a 4.6m x 1.9m physical footprint, uses object sizes from the data when available, preserves one px-per-meter scale for x/y, and highlights risk targets with an outer frame, label, and distance line instead of enlarging the object body. ADAS/TTC distances and fusion outputs are not modified by this visual fix.\n",
         encoding="utf-8",
     )
 
