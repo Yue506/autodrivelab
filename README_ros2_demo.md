@@ -41,3 +41,35 @@ ros2 launch demo_pipeline demo_ros2.launch.py \
 ```
 
 Output video: `demo_outputs/scene_000/demo_ros2.mp4`.
+
+## Demo 级系统输出桥接
+
+当前系统保留 `/adas|dms|iqa|fusion/*` 作为 Demo 主数据流。为对接 `/autodrivelab/*` 系统命名空间，新增可选 bridge 节点：
+
+```text
+/fusion/risk_status
+    -> fusion_to_autodrivelab_bridge_node
+    -> /autodrivelab/fusion/risk_status
+    -> /autodrivelab/can/tx
+```
+
+该 bridge 为旁路增强，不影响原 Demo 主链路。默认不开启：
+
+```bash
+ros2 launch demo_pipeline demo_ros2.launch.py enable_bridge:=false
+```
+
+开启 bridge：
+
+```bash
+ros2 launch demo_pipeline demo_ros2.launch.py enable_bridge:=true
+```
+
+开启后可检查：
+
+```bash
+ros2 topic echo /autodrivelab/fusion/risk_status
+ros2 topic echo /autodrivelab/can/tx
+```
+
+`/autodrivelab/can/tx` 使用 Demo 级 `FusionRiskStatus -> CanFrame` 编码，协议说明见 `docs/protocol/can_frame_mapping.md`。协议边界说明见 `docs/protocol/protocol_boundary_statement.md`。

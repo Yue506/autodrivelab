@@ -24,6 +24,7 @@ setup(
             "dms_scripted_node = demo_pipeline.dms_scripted_node:main",
             "iqa_adapter_node = demo_pipeline.iqa_adapter_node:main",
             "render_recorder_node = demo_pipeline.render_recorder_node:main",
+            "fusion_to_autodrivelab_bridge_node = demo_pipeline.fusion_to_autodrivelab_bridge_node:main",
         ],
     },
 )
