@@ -1,0 +1,10 @@
+builtin_interfaces/Time stamp
+int32 frame_index
+string scene_token
+string sample_token
+string cam_front
+string cam_front_left
+string cam_front_right
+string cam_back
+string cam_back_left
+string cam_back_right

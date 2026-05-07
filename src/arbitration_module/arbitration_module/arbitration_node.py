@@ -79,6 +79,7 @@ class ArbitrationNode(Node):
         msg = FusionRiskStatus()
         msg.stamp = now
         msg.frame_id = getattr(adas, "frame_id", "base_link") if adas is not None else "base_link"
+        msg.frame_index = int(getattr(adas, "frame_index", getattr(status, "frame_index", -1)))
         msg.unified_risk_level = int(unified_level)
         msg.primary_source = primary_source
         msg.primary_event = primary_event

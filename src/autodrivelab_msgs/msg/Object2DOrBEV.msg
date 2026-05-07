@@ -1,0 +1,12 @@
+string object_id
+string class_name
+float32 x
+float32 y
+float32 z
+float32 distance
+float32 width
+float32 length
+float32 height
+bool is_front_risk
+int32 risk_level
+float32 confidence

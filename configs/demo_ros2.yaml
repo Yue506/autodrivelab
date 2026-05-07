@@ -1,0 +1,16 @@
+nuscenes_replay:
+  cache_dir: "demo_outputs/scene_000/demo_cache"
+  fps: 10
+  loop: false
+
+dms_scripted:
+  total_frames: 39
+
+iqa:
+  mode: "scripted"
+  test_result_path: "demo_outputs/scene_000/iqa_status_from_test.jsonl"
+  source: "custom_iqa_test_dataset"
+
+render:
+  scene_dir: "demo_outputs/scene_000"
+  output: "demo_outputs/scene_000/demo_ros2.mp4"
