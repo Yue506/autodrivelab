@@ -11,7 +11,7 @@ output:
   scene_dir: "scene_000"
 
 demo:
-  fps: 10
+  fps: 5
   copy_images: true
   use_gt_for_adas: true
   use_scripted_dms: true

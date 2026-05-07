@@ -322,7 +322,7 @@ def main() -> None:
     parser.add_argument("--depth-model", default="depth-anything/Depth-Anything-V2-Small-hf")
     parser.add_argument("--conf", type=float, default=0.20)
     parser.add_argument("--imgsz", type=int, default=960)
-    parser.add_argument("--fps", type=int, default=10)
+    parser.add_argument("--fps", type=int, default=5)
     parser.add_argument("--cpu", action="store_true")
     parser.add_argument("--allow-depth-fallback", action="store_true", default=True)
     args = parser.parse_args()

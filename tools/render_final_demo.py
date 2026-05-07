@@ -175,7 +175,7 @@ def main():
     parser.add_argument("--out", required=True)
     parser.add_argument("--width", type=int, default=1920)
     parser.add_argument("--height", type=int, default=1080)
-    parser.add_argument("--fps", type=int, default=10)
+    parser.add_argument("--fps", type=int, default=5)
     parser.add_argument("--adas-objects")
     parser.add_argument("--adas-status")
     parser.add_argument("--iqa-status")

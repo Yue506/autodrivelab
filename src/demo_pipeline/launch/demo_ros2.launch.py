@@ -16,7 +16,7 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument("cache_dir", default_value="demo_outputs/scene_000/demo_cache"),
         DeclareLaunchArgument("scene_dir", default_value="demo_outputs/scene_000"),
-        DeclareLaunchArgument("fps", default_value="10"),
+        DeclareLaunchArgument("fps", default_value="5"),
         DeclareLaunchArgument("total_frames", default_value="39"),
         DeclareLaunchArgument("iqa_mode", default_value="scripted"),
         DeclareLaunchArgument("iqa_result", default_value=""),

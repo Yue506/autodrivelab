@@ -737,7 +737,7 @@ def run_pipeline(args: argparse.Namespace) -> None:
             iqa_status=scene_dir / "iqa_status.jsonl",
             fusion_status=scene_dir / "fusion_status.jsonl",
             out=scene_dir / "demo.mp4",
-            fps=int(cfg.get("demo", {}).get("fps", 10)),
+            fps=int(cfg.get("demo", {}).get("fps", 5)),
         )
     )
     write_demo_readme(scene_dir, cache_dir, config_path)
@@ -788,7 +788,7 @@ def build_parser(command: str) -> argparse.ArgumentParser:
         parser.add_argument("--iqa-status", required=True)
         parser.add_argument("--fusion-status", required=True)
         parser.add_argument("--out", required=True)
-        parser.add_argument("--fps", type=int, default=10)
+        parser.add_argument("--fps", type=int, default=5)
     elif command == "run_pipeline":
         parser.add_argument("--config", required=True)
         parser.add_argument("--skip-cache", action="store_true")

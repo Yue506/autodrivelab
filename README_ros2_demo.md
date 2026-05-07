@@ -23,7 +23,7 @@ source install/setup.bash
 ros2 launch demo_pipeline demo_ros2.launch.py \
   cache_dir:=demo_outputs/scene_000/demo_cache \
   scene_dir:=demo_outputs/scene_000 \
-  fps:=10 \
+  fps:=5 \
   total_frames:=39 \
   iqa_mode:=scripted
 ```
@@ -34,7 +34,7 @@ For IQA test-result mode:
 ros2 launch demo_pipeline demo_ros2.launch.py \
   cache_dir:=demo_outputs/scene_000/demo_cache \
   scene_dir:=demo_outputs/scene_000 \
-  fps:=10 \
+  fps:=5 \
   total_frames:=39 \
   iqa_mode:=offline_test_result \
   iqa_result:=demo_outputs/scene_000/iqa_status_from_test.jsonl

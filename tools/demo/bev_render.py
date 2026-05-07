@@ -42,6 +42,10 @@ class BevRenderConfig:
     merge_same_class_overlaps: bool = True
     merge_overlap_margin_m: float = 0.35
     static_roadside_y_abs_m: float = 3.5
+    ego_clearance_front_m: float = 2.0
+    ego_clearance_rear_m: float = 1.2
+    ego_clearance_side_m: float = 1.0
+    draw_ego_clearance: bool = True
 
 
 def get_object_physical_size(obj: dict[str, Any]) -> tuple[float, float]:
@@ -109,6 +113,39 @@ def is_roadside_static(obj: dict[str, Any], cfg: BevRenderConfig) -> bool:
     except (TypeError, ValueError):
         y_m = 0.0
     return is_static_class(str(obj.get("class_name", "unknown"))) and y_m > cfg.static_roadside_y_abs_m
+
+
+def ego_clearance_extent(cfg: BevRenderConfig) -> tuple[float, float, float, float]:
+    return (
+        -cfg.ego_length_m / 2.0 - cfg.ego_clearance_rear_m,
+        cfg.ego_length_m / 2.0 + cfg.ego_clearance_front_m,
+        -cfg.ego_width_m / 2.0 - cfg.ego_clearance_side_m,
+        cfg.ego_width_m / 2.0 + cfg.ego_clearance_side_m,
+    )
+
+
+def overlaps_ego_clearance(obj: dict[str, Any], cfg: BevRenderConfig) -> bool:
+    return extents_overlap(object_extent_m(obj), ego_clearance_extent(cfg), 0.0)
+
+
+def project_outside_ego_clearance(x_m: float, y_m: float, cfg: BevRenderConfig) -> tuple[float, float]:
+    x1, x2, y1, y2 = ego_clearance_extent(cfg)
+    if not (x1 <= x_m <= x2 and y1 <= y_m <= y2):
+        return x_m, y_m
+    distances = {
+        "front": abs(x2 - x_m),
+        "rear": abs(x_m - x1),
+        "left": abs(y2 - y_m),
+        "right": abs(y_m - y1),
+    }
+    side = min(distances, key=distances.get)
+    if side == "front":
+        return x2 + 0.25, y_m
+    if side == "rear":
+        return x1 - 0.25, y_m
+    if side == "left":
+        return x_m, y2 + 0.25
+    return x_m, y1 - 0.25
 
 
 def object_extent_m(obj: dict[str, Any]) -> tuple[float, float, float, float]:
@@ -209,6 +246,18 @@ def draw_bev_scene(
 
     ego_l = max(cfg.ego_length_m * scale, cfg.ego_min_length_px)
     ego_w = max(cfg.ego_width_m * scale, cfg.ego_min_width_px)
+    if cfg.draw_ego_clearance:
+        cx1, cx2, cy1, cy2 = ego_clearance_extent(cfg)
+        p1 = bev_to_pixel(cx1, cy1, scale, origin_px)
+        p2 = bev_to_pixel(cx2, cy2, scale, origin_px)
+        cv2.rectangle(
+            canvas,
+            (min(p1[0], p2[0]), min(p1[1], p2[1])),
+            (max(p1[0], p2[0]), max(p1[1], p2[1])),
+            (82, 88, 96),
+            1,
+            cv2.LINE_AA,
+        )
     draw_box(canvas, origin_px, ego_w, ego_l, (230, 232, 235), 2, (205, 208, 212))
     put_text(canvas, "EGO", (origin_px[0] - 15, origin_px[1] + int(ego_l / 2) + 18), 0.38, (230, 232, 235), 1)
 
@@ -228,6 +277,14 @@ def draw_bev_scene(
         width_m, length_m = get_object_physical_size(obj)
         distance_m = float(obj.get("distance", math.hypot(x_m, y_m)) or math.hypot(x_m, y_m))
         color = risk_color(level) if is_target or (level > 0 and not roadside_static) else (92, 118, 145)
+        suppress_box_for_clearance = not is_target and is_static_class(str(obj.get("class_name", "unknown"))) and overlaps_ego_clearance(obj, cfg)
+
+        if suppress_box_for_clearance:
+            marker_x, marker_y = project_outside_ego_clearance(x_m, y_m, cfg)
+            marker = bev_to_pixel(marker_x, marker_y, scale, origin_px)
+            cv2.circle(canvas, marker, max(3, cfg.object_min_size_px // 2), color, 1, cv2.LINE_AA)
+            put_text(canvas, "static", (marker[0] + 5, marker[1] - 5), 0.32, color, 1)
+            continue
 
         if distance_m > cfg.far_object_distance_m and not is_target:
             cv2.circle(canvas, center, max(3, cfg.object_min_size_px // 2), color, 1, cv2.LINE_AA)

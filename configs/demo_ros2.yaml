@@ -1,6 +1,6 @@
 nuscenes_replay:
   cache_dir: "demo_outputs/scene_000/demo_cache"
-  fps: 10
+  fps: 5
   loop: false
 
 dms_scripted:
