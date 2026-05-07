@@ -1,0 +1,18 @@
+nuscenes:
+  dataroot: "data/nuscense"
+  version: "v1.0-mini"
+  scene_index: 0
+  scene_name: null
+  auto_select_scene: true
+  max_frames: 80
+
+output:
+  root: "demo_outputs"
+  scene_dir: "scene_000"
+
+demo:
+  fps: 10
+  copy_images: true
+  use_gt_for_adas: true
+  use_scripted_dms: true
+  use_scripted_iqa: true
