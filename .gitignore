@@ -33,6 +33,7 @@ logs/
 runs/
 outputs/
 demo_outputs/**
+model_inference_outputs/**
 artifacts/
 reports/*.csv
 
