@@ -39,6 +39,9 @@ class BevRenderConfig:
     draw_distance_line: bool = True
     draw_distance_text: bool = True
     draw_risk_highlight_box: bool = True
+    merge_same_class_overlaps: bool = True
+    merge_overlap_margin_m: float = 0.35
+    static_roadside_y_abs_m: float = 3.5
 
 
 def get_object_physical_size(obj: dict[str, Any]) -> tuple[float, float]:
@@ -96,6 +99,82 @@ def draw_distance_annotation(canvas, origin_px, center_px, distance_m: float, co
     put_text(canvas, f"{distance_m:.1f}m", (mx + 6, my - 6), 0.42, color, 1)
 
 
+def is_static_class(class_name: str) -> bool:
+    return class_name in {"barrier", "traffic_cone", "construction_vehicle", "unknown"}
+
+
+def is_roadside_static(obj: dict[str, Any], cfg: BevRenderConfig) -> bool:
+    try:
+        y_m = abs(float(obj.get("y", 0.0)))
+    except (TypeError, ValueError):
+        y_m = 0.0
+    return is_static_class(str(obj.get("class_name", "unknown"))) and y_m > cfg.static_roadside_y_abs_m
+
+
+def object_extent_m(obj: dict[str, Any]) -> tuple[float, float, float, float]:
+    x_m = float(obj.get("x", 0.0))
+    y_m = float(obj.get("y", 0.0))
+    width_m, length_m = get_object_physical_size(obj)
+    return (
+        x_m - length_m / 2.0,
+        x_m + length_m / 2.0,
+        y_m - width_m / 2.0,
+        y_m + width_m / 2.0,
+    )
+
+
+def extents_overlap(a: tuple[float, float, float, float], b: tuple[float, float, float, float], margin: float) -> bool:
+    ax1, ax2, ay1, ay2 = a
+    bx1, bx2, by1, by2 = b
+    return ax1 <= bx2 + margin and bx1 <= ax2 + margin and ay1 <= by2 + margin and by1 <= ay2 + margin
+
+
+def merge_object_group(group: list[dict[str, Any]], target_object_id: str | None) -> dict[str, Any]:
+    extents = [object_extent_m(obj) for obj in group]
+    x1 = min(item[0] for item in extents)
+    x2 = max(item[1] for item in extents)
+    y1 = min(item[2] for item in extents)
+    y2 = max(item[3] for item in extents)
+    representative = min(group, key=lambda obj: float(obj.get("distance", math.hypot(float(obj.get("x", 0.0)), float(obj.get("y", 0.0))) or 0.0)))
+    merged = dict(representative)
+    merged["x"] = (x1 + x2) / 2.0
+    merged["y"] = (y1 + y2) / 2.0
+    merged["distance"] = min(float(obj.get("distance", math.hypot(float(obj.get("x", 0.0)), float(obj.get("y", 0.0))) or 0.0)) for obj in group)
+    merged["size"] = [max(y2 - y1, 0.1), max(x2 - x1, 0.1), 1.0]
+    merged["object_id"] = ",".join(str(obj.get("object_id", "")) for obj in group if obj.get("object_id"))
+    if target_object_id and any(obj.get("object_id") == target_object_id for obj in group):
+        merged["object_id"] = target_object_id
+    merged["is_front_risk"] = any(bool(obj.get("is_front_risk")) for obj in group)
+    merged["risk_level"] = max(int(obj.get("risk_level", 0) or 0) for obj in group)
+    merged["merged_count"] = len(group)
+    return merged
+
+
+def merge_same_class_overlaps(objects: list[dict[str, Any]], target_object_id: str | None, cfg: BevRenderConfig) -> list[dict[str, Any]]:
+    if not cfg.merge_same_class_overlaps:
+        return objects
+    remaining = list(objects)
+    merged: list[dict[str, Any]] = []
+    while remaining:
+        seed = remaining.pop(0)
+        group = [seed]
+        changed = True
+        while changed:
+            changed = False
+            group_extent = object_extent_m(merge_object_group(group, target_object_id))
+            next_remaining = []
+            for obj in remaining:
+                same_class = str(obj.get("class_name", "unknown")) == str(seed.get("class_name", "unknown"))
+                if same_class and extents_overlap(group_extent, object_extent_m(obj), cfg.merge_overlap_margin_m):
+                    group.append(obj)
+                    changed = True
+                else:
+                    next_remaining.append(obj)
+            remaining = next_remaining
+        merged.append(merge_object_group(group, target_object_id) if len(group) > 1 else seed)
+    return merged
+
+
 def draw_bev_scene(
     canvas: np.ndarray,
     rect: tuple[int, int, int, int],
@@ -133,7 +212,8 @@ def draw_bev_scene(
     draw_box(canvas, origin_px, ego_w, ego_l, (230, 232, 235), 2, (205, 208, 212))
     put_text(canvas, "EGO", (origin_px[0] - 15, origin_px[1] + int(ego_l / 2) + 18), 0.38, (230, 232, 235), 1)
 
-    for obj in objects:
+    display_objects = merge_same_class_overlaps(objects, target_object_id, cfg)
+    for obj in display_objects:
         try:
             x_m, y_m = float(obj.get("x", 0.0)), float(obj.get("y", 0.0))
         except (TypeError, ValueError):
@@ -142,10 +222,12 @@ def draw_bev_scene(
             continue
         center = bev_to_pixel(x_m, y_m, scale, origin_px)
         level = int(obj.get("risk_level", 0) or 0)
-        is_target = obj.get("object_id") == target_object_id or bool(obj.get("is_front_risk"))
+        roadside_static = is_roadside_static(obj, cfg)
+        is_primary_target = bool(target_object_id) and obj.get("object_id") == target_object_id
+        is_target = is_primary_target or (bool(obj.get("is_front_risk")) and not roadside_static)
         width_m, length_m = get_object_physical_size(obj)
         distance_m = float(obj.get("distance", math.hypot(x_m, y_m)) or math.hypot(x_m, y_m))
-        color = risk_color(level) if is_target or level > 0 else (110, 155, 210)
+        color = risk_color(level) if is_target or (level > 0 and not roadside_static) else (92, 118, 145)
 
         if distance_m > cfg.far_object_distance_m and not is_target:
             cv2.circle(canvas, center, max(3, cfg.object_min_size_px // 2), color, 1, cv2.LINE_AA)
@@ -154,6 +236,8 @@ def draw_bev_scene(
         obj_w_px = max(width_m * scale, cfg.object_min_size_px)
         obj_l_px = max(length_m * scale, cfg.object_min_size_px)
         draw_box(canvas, center, obj_w_px, obj_l_px, color, 2 if is_target else 1)
+        if obj.get("merged_count", 1) > 1 and not is_target:
+            put_text(canvas, f"x{obj['merged_count']}", (center[0] + 6, center[1] + 12), 0.34, color, 1)
 
         if is_target:
             if cfg.draw_risk_highlight_box:
