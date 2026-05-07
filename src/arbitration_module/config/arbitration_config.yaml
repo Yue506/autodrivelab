@@ -1,0 +1,47 @@
+ros:
+  adas_topic: "/adas/status"
+  dms_topic: "/dms/status"
+  iqa_topic: "/iqa/status"
+  fusion_topic: "/fusion/risk_status"
+
+sync:
+  time_window_ms: 100
+  adas_timeout_ms: 200
+  dms_timeout_ms: 500
+  iqa_timeout_ms: 1500
+  use_latest_dms_when_missing: true
+  use_latest_iqa_when_missing: true
+
+priority:
+  immediate_adas_level: 3
+  emergency_adas_level: 4
+
+risk:
+  output_min_level: 0
+  output_max_level: 4
+  enable_dms_risk_boost: true
+  enable_iqa_gate: true
+
+iqa:
+  camera_names:
+    - "CAM_FRONT"
+    - "CAM_FRONT_LEFT"
+    - "CAM_FRONT_RIGHT"
+    - "CAM_BACK"
+    - "CAM_BACK_LEFT"
+    - "CAM_BACK_RIGHT"
+  critical_cameras:
+    - "CAM_FRONT"
+    - "CAM_FRONT_LEFT"
+    - "CAM_FRONT_RIGHT"
+  soiling_score_threshold: 0.5
+  level1_soiled_count: 1
+  level2_soiled_count: 2
+  level3_soiled_count: 3
+  min_level_when_iqa_level2: 2
+  min_level_when_iqa_level3: 2
+  mark_degraded_from_level: 2
+
+runtime:
+  publish_rate_hz: 30
+  debug: true

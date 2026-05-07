@@ -1,0 +1,60 @@
+project_name: iqa_mobilenetv2
+seed: 42
+
+data:
+  raw_normal_dir: ../data/IQA_data/normal
+  raw_soiling_dir: ../data/IQA_data/soiling
+  root: data/woodscape_iqa
+  train_dir: data/woodscape_iqa/train
+  val_dir: data/woodscape_iqa/val
+  test_dir: data/woodscape_iqa/test
+  num_classes: 2
+  class_names:
+    - normal
+    - soiling
+
+model:
+  name: mobilenet_v2
+  pretrained: true
+  num_classes: 2
+
+train:
+  image_size: 224
+  batch_size: 128
+  epochs: 200
+  num_workers: 8
+  optimizer: adamw
+  learning_rate: 0.0001
+  weight_decay: 0.0001
+  scheduler: cosine
+  label_smoothing: 0.0
+  early_stopping_patience: 30
+  metric_for_best: f1
+  amp: true
+  resume: true
+  class_weight: balanced
+  freeze_backbone_epochs: 3
+
+split:
+  ratios:
+    train: 0.70
+    val: 0.15
+    test: 0.15
+
+augmentation:
+  train:
+    random_resized_crop: true
+    horizontal_flip: true
+    color_jitter: true
+    rotation: 5
+  val_test:
+    resize: 256
+    center_crop: 224
+
+output:
+  root: outputs/iqa_mobilenetv2
+  checkpoints: outputs/iqa_mobilenetv2/checkpoints
+  logs: outputs/iqa_mobilenetv2/logs
+  figures: outputs/iqa_mobilenetv2/figures
+  metrics: outputs/iqa_mobilenetv2/metrics
+  samples: outputs/iqa_mobilenetv2/samples

@@ -1,0 +1,32 @@
+ros:
+  input_image_topic: "/camera/dms/image_raw"
+  output_status_topic: "/dms/status"
+  output_vis_topic: "/dms/vis_image"
+  publish_visualization: true
+
+model:
+  yolo_weight_path: "weights/yolov8n.pt"
+  yolo_conf_threshold: 0.35
+  yolo_iou_threshold: 0.45
+  require_yolo_weights: false
+
+face:
+  ear_threshold: 0.22
+  mar_threshold: 0.60
+  head_yaw_threshold: 25.0
+  head_pitch_threshold: 20.0
+
+temporal_filter:
+  enable: true
+  fps: 30
+  eyes_closed_trigger_frames: 10
+  yawning_trigger_frames: 8
+  phone_trigger_frames: 5
+  smoking_trigger_frames: 5
+  distracted_trigger_frames: 8
+  release_frames: 15
+  min_hold_time_ms: 1000
+
+runtime:
+  max_latency_ms: 100
+  debug: true
