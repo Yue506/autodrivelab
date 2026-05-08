@@ -97,12 +97,6 @@ source install/setup.bash
 ros2 launch demo_bringup autodrivelab_demo.launch.py
 ```
 
-生成三段标准展示视频时，默认输出目录为 `demo_outputs/three_scene_slow/`，主页引用的视频资产位于 `docs/assets/demo_videos/`。
-
-## Data And Models
-
-nuScenes 数据默认放在 `data/nuscenes/`，IQA 数据默认放在 `data/IQA_data/`，模型权重默认放在 `models/`。这些目录包含大文件或本地环境产物，默认不提交到 GitHub。
-
 ## Documentation
 
 - [Architecture](docs/bishe_project_architecture.md)
