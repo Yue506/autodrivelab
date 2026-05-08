@@ -43,6 +43,7 @@ data/raw/**
 data/processed/**
 data/edge_cases/**
 data/IQA_data/**
+data/DMS_test_data/**
 iqa_mobilenetv2_reproduce/data/woodscape_iqa/**
 !data/nuscenes/.gitkeep
 !data/raw/.gitkeep
