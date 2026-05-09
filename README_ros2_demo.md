@@ -8,6 +8,7 @@ This demo upgrades the offline JSONL nuScenes MVP into a ROS2 topic flow.
 - `/nuscenes/gt_objects`: nuScenes GT boxes in ego/BEV coordinates.
 - `/adas/objects`: GT-derived pseudo perception objects.
 - `/adas/status`: distance-threshold ADAS/TTC risk state.
+- `/autodrivelab/ego_state` + `/autodrivelab/bev/objects` -> `/autodrivelab/risk_metrics`: EKF-smoothed CTRV / CA motion prediction path for demo-level TTC, BSD, FCW, and lane-change risk events.
 - `/dms/status`: scripted DMS state because nuScenes has no cabin video.
 - `/iqa/status`: scripted or custom IQA test result adapter.
 - `/fusion/risk_status`: arbitration output from ADAS, DMS, and IQA.
@@ -41,6 +42,30 @@ ros2 launch demo_pipeline demo_ros2.launch.py \
 ```
 
 Output video: `demo_outputs/scene_000/demo_ros2.mp4`.
+
+## EKF + CTRV Motion Prediction
+
+Tingfeng Wang optimised the `motion_prediction` module with EKF-smoothed target states and short-horizon CTRV / CA trajectory prediction. The node keeps the existing ROS2 interface unchanged:
+
+```text
+/autodrivelab/ego_state + /autodrivelab/bev/objects
+  -> motion_prediction
+  -> /autodrivelab/risk_metrics
+```
+
+`/autodrivelab/risk_metrics` publishes `min_ttc_s`, `risk_level`, and `active_events`. Current event names include `BSD_ACTIVE`, `FCW_POTENTIAL`, `FCW_EMERGENCY`, and `LCA_INTERVENTION`. This is a graduation-demo risk reasoning module for downstream arbitration and HMI visualization, not production AEB or real vehicle control.
+
+Quick core check:
+
+```bash
+python3 tools/test_motion_prediction_core.py
+```
+
+Build check:
+
+```bash
+colcon build --symlink-install --packages-select autodrivelab_msgs motion_prediction
+```
 
 ## Demo 级系统输出桥接
 
