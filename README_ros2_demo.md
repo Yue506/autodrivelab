@@ -7,7 +7,7 @@ This demo upgrades the offline JSONL nuScenes MVP into a ROS2 topic flow.
 - `/nuscenes/frame`: lightweight frame metadata and camera image paths.
 - `/nuscenes/gt_objects`: nuScenes GT boxes in ego/BEV coordinates.
 - `/adas/objects`: GT-derived pseudo perception objects.
-- `/adas/status`: distance-threshold ADAS/TTC risk state.
+- `/adas/status`: TTC-gated ADAS/FCW risk state. Distance is kept for display, while high FCW risk requires positive closing speed and TTC thresholds.
 - `/autodrivelab/ego_state` + `/autodrivelab/bev/objects` -> `/autodrivelab/risk_metrics`: EKF-smoothed CTRV / CA motion prediction path for demo-level TTC, BSD, FCW, and lane-change risk events.
 - `/dms/status`: scripted DMS state because nuScenes has no cabin video.
 - `/iqa/status`: scripted or custom IQA test result adapter.

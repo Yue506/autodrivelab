@@ -25,16 +25,14 @@ def normalize_class(name: str) -> str:
     return name
 
 
-def level_for_distance(distance: float) -> tuple[int, str, str]:
-    if distance <= 4.0:
-        return 4, "FCW_EMERGENCY", "前方目标距离极近，触发紧急风险"
-    if distance <= 8.0:
-        return 3, "FCW_WARNING", "前方目标距离过近，请减速"
-    if distance <= 15.0:
-        return 2, "FRONT_OBJECT_ATTENTION", "前方目标较近，请保持注意"
-    if distance <= 30.0:
-        return 1, "FRONT_OBJECT_NEARBY", "前方目标进入关注区域"
-    return 0, "ADAS_NORMAL", "前方无明显碰撞风险"
+def level_for_ttc(ttc: float | None) -> tuple[int, str, str]:
+    if ttc is None or not math.isfinite(ttc):
+        return 0, "ADAS_NORMAL", "前方无明显碰撞风险"
+    if ttc < 3.0:
+        return 4, "FCW_EMERGENCY", "TTC 小于 3 秒，触发前向紧急碰撞风险"
+    if ttc <= 5.0:
+        return 3, "FCW_POTENTIAL", "TTC 在 3 到 5 秒内，触发前向潜在碰撞风险"
+    return 0, "ADAS_NORMAL", "前方目标 TTC 未达到告警阈值"
 
 
 class AdasGtAdapterNode(Node):
@@ -44,6 +42,19 @@ class AdasGtAdapterNode(Node):
         self.status_pub = self.create_publisher(AdasStatus, "/adas/status", 10)
         self.objects_pub = self.create_publisher(ObjectList, "/adas/objects", 10)
         self.create_subscription(ObjectList, "/nuscenes/gt_objects", self.on_objects, 10)
+        self.prev_distance_by_id: dict[str, tuple[int, float]] = {}
+
+    def compute_ttc(self, object_id: str, frame_index: int, distance: float) -> tuple[float | None, float]:
+        prev = self.prev_distance_by_id.get(object_id)
+        relative_speed = 0.0
+        ttc = None
+        if prev:
+            dt = max((int(frame_index) - prev[0]) / 5.0, 1e-3)
+            relative_speed = (prev[1] - distance) / dt
+            if relative_speed > 0.1:
+                ttc = distance / relative_speed
+        self.prev_distance_by_id[object_id] = (int(frame_index), distance)
+        return ttc, relative_speed
 
     def on_objects(self, msg: ObjectList):
         front_y = float(self.get_parameter("front_y_abs_max").value)
@@ -52,8 +63,9 @@ class AdasGtAdapterNode(Node):
         for obj in msg.objects:
             cls = normalize_class(obj.class_name)
             distance = math.hypot(float(obj.x), float(obj.y))
-            level, _, _ = level_for_distance(distance)
             is_front = cls in RISK_CLASSES and obj.x > 0.0 and abs(obj.y) < front_y
+            ttc, relative_speed = self.compute_ttc(obj.object_id, msg.frame_index, distance) if is_front else (None, 0.0)
+            level, _, _ = level_for_ttc(ttc)
             item = Object2DOrBEV(
                 object_id=obj.object_id,
                 class_name=cls,
@@ -69,9 +81,23 @@ class AdasGtAdapterNode(Node):
                 confidence=1.0,
             )
             out.objects.append(item)
-            if item.is_front_risk and (best is None or item.distance < best.distance):
-                best = item
-        level, event, desc = level_for_distance(best.distance) if best else level_for_distance(float("inf"))
+            candidate = {
+                "item": item,
+                "level": int(level),
+                "ttc": float(ttc) if ttc is not None else None,
+                "relative_speed": float(relative_speed),
+            }
+            if item.is_front_risk and (
+                best is None
+                or candidate["level"] > best["level"]
+                or (
+                    candidate["level"] == best["level"]
+                    and (candidate["ttc"] or float("inf")) < (best["ttc"] or float("inf"))
+                )
+            ):
+                best = candidate
+        best_item = best["item"] if best else None
+        level, event, desc = level_for_ttc(best["ttc"] if best else None)
         status = AdasStatus(
             stamp=msg.stamp,
             frame_id="base_link",
@@ -79,11 +105,13 @@ class AdasGtAdapterNode(Node):
             adas_level=int(level),
             event_type=event,
             event_description=desc,
-            distance=float(best.distance) if best else 0.0,
-            target_object_id=best.object_id if best else "",
+            distance=float(best_item.distance) if best_item else 0.0,
+            target_object_id=best_item.object_id if best_item else "",
             confidence=1.0,
             valid=True,
         )
+        status.ttc = float(best["ttc"]) if best and best["ttc"] is not None else 0.0
+        status.relative_speed = float(best["relative_speed"]) if best else 0.0
         status.fcw_active = level >= 3
         status.aeb_active = level >= 4
         self.objects_pub.publish(out)

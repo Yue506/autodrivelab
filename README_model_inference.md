@@ -32,4 +32,4 @@ Runtime artifacts are written under `model_inference_outputs/`:
 - `final_demo_model.mp4`
 - `model_inference_report.md`
 
-The model-estimated distance is a monocular estimate calibrated for the offline demo visualization and risk fusion input format.
+The model-estimated distance is a monocular estimate calibrated for offline demo visualization. High FCW risk is gated by estimated closing speed and TTC across frames; a close target without an approaching relative-speed trend remains non-emergency in the ADAS status output.

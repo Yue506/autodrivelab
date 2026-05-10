@@ -146,30 +146,57 @@ def lateral_offset(x_center: float, image_width: int, distance: float) -> float:
     return clamp(math.tan(angle) * distance, -25.0, 25.0)
 
 
-def risk_level(distance: float, abs_y: float) -> int:
-    if abs_y > 3.8:
-        return 0
-    if distance <= 6:
-        return 4
-    if distance <= 10:
-        return 3
-    if distance <= 18:
-        return 2
-    if distance <= 30:
-        return 1
-    return 0
+def risk_from_ttc(ttc: float | None) -> tuple[int, str, str]:
+    if ttc is None or not math.isfinite(ttc):
+        return 0, "NO_FRONT_RISK", "模型未检测到满足 TTC 阈值的前向风险"
+    if ttc < 3.0:
+        return 4, "FCW_EMERGENCY", "TTC 小于 3 秒，触发前向紧急碰撞风险"
+    if ttc <= 5.0:
+        return 3, "FCW_POTENTIAL", "TTC 在 3 到 5 秒内，触发前向潜在碰撞风险"
+    return 0, "NO_FRONT_RISK", "模型前向目标 TTC 未达到告警阈值"
+
+
+def track_key(class_name: str, lateral_m: float) -> str:
+    lateral_bin = round(lateral_m / 2.0) * 2
+    return f"{class_name}:{lateral_bin:+.0f}m"
+
+
+def estimate_ttc_for_objects(frame: dict, objects: list[dict], prev_distance_by_track: dict[str, tuple[int, float]]) -> None:
+    for obj in objects:
+        if not obj.get("is_front_candidate"):
+            obj["relative_speed"] = 0.0
+            obj["ttc"] = None
+            obj["risk_level"] = 0
+            obj["is_front_risk"] = False
+            continue
+        key = obj["track_key"]
+        prev = prev_distance_by_track.get(key)
+        relative_speed = 0.0
+        ttc = None
+        if prev:
+            dt = max((int(frame["timestamp"]) - prev[0]) / 1e6, 1e-3)
+            relative_speed = (prev[1] - float(obj["distance"])) / dt
+            if relative_speed > 0.1:
+                ttc = float(obj["distance"]) / relative_speed
+        prev_distance_by_track[key] = (int(frame["timestamp"]), float(obj["distance"]))
+        level, _, _ = risk_from_ttc(ttc)
+        obj["relative_speed"] = float(relative_speed)
+        obj["ttc"] = ttc
+        obj["risk_level"] = int(level)
+        obj["is_front_risk"] = level > 0
 
 
 def status_from_objects(frame: dict, objects: list[dict]) -> dict:
     front = [o for o in objects if o["is_front_risk"]]
-    target = min(front, key=lambda row: row["distance"], default=None)
+    target = max(front, key=lambda row: (row["risk_level"], -(row["ttc"] or float("inf"))), default=None)
     if target is None:
+        _, event_type, description = risk_from_ttc(None)
         return {
             "frame_index": frame["frame_index"],
             "timestamp": frame["timestamp"],
             "adas_level": 0,
-            "event_type": "NO_FRONT_RISK",
-            "event_description": "模型未检测到前向风险目标",
+            "event_type": event_type,
+            "event_description": description,
             "target_object_id": None,
             "front_object_distance": None,
             "relative_speed": 0.0,
@@ -177,9 +204,7 @@ def status_from_objects(frame: dict, objects: list[dict]) -> dict:
             "confidence": 0.0,
             "valid": True,
         }
-    level = int(target["risk_level"])
-    event_type = ["FRONT_OBJECT_CLEAR", "FRONT_OBJECT_NEARBY", "FRONT_OBJECT_ATTENTION", "FRONT_OBJECT_WARNING", "FRONT_OBJECT_EMERGENCY"][level]
-    description = ["前方模型目标安全", "前方模型目标进入关注区域", "前方模型目标较近", "前方模型目标距离危险", "前方模型目标紧急接近"][level]
+    level, event_type, description = risk_from_ttc(target.get("ttc"))
     return {
         "frame_index": frame["frame_index"],
         "timestamp": frame["timestamp"],
@@ -188,8 +213,8 @@ def status_from_objects(frame: dict, objects: list[dict]) -> dict:
         "event_description": description,
         "target_object_id": target["object_id"],
         "front_object_distance": float(target["distance"]),
-        "relative_speed": 0.0,
-        "ttc": None,
+        "relative_speed": float(target["relative_speed"]),
+        "ttc": float(target["ttc"]) if target.get("ttc") is not None else None,
         "confidence": float(target["confidence"]),
         "valid": True,
     }
@@ -209,6 +234,7 @@ def run_detector(args: argparse.Namespace) -> dict:
     status_rows: list[dict] = []
     prediction_rows: list[dict] = []
     detections_total = 0
+    prev_distance_by_track: dict[str, tuple[int, float]] = {}
     for frame in frames:
         image_path = cache_dir / frame["camera_images"].get(args.camera, "")
         image = cv2.imread(str(image_path))
@@ -231,7 +257,7 @@ def run_detector(args: argparse.Namespace) -> dict:
             dval = depth_signal(depth_map, xyxy)
             distance = estimate_distance(class_name, xyxy, image.shape, dval)
             y = lateral_offset(cx, image.shape[1], distance)
-            level = risk_level(distance, abs(y))
+            is_front_candidate = abs(y) <= 3.8
             obj = {
                 "object_id": f"pred_{frame['frame_index']:04d}_{det_idx:02d}",
                 "class_name": class_name,
@@ -239,15 +265,20 @@ def run_detector(args: argparse.Namespace) -> dict:
                 "y": float(y),
                 "z": CLASS_HEIGHT_M.get(class_name, 1.6) / 2.0,
                 "distance": float(math.hypot(distance, y)),
-                "is_front_risk": level > 0,
-                "risk_level": int(level),
+                "is_front_candidate": bool(is_front_candidate),
+                "is_front_risk": False,
+                "risk_level": 0,
                 "size": CLASS_SIZE.get(class_name, [1.0, 1.0, 1.0]),
                 "confidence": float(box.conf.item()),
                 "bbox_xyxy": xyxy,
                 "depth_signal": dval,
                 "source_camera": args.camera,
+                "track_key": track_key(class_name, y),
+                "relative_speed": 0.0,
+                "ttc": None,
             }
             objects.append(obj)
+        estimate_ttc_for_objects(frame, objects, prev_distance_by_track)
         detections_total += len(objects)
         objects.sort(key=lambda row: row["distance"])
         object_rows.append({"frame_index": frame["frame_index"], "timestamp": frame["timestamp"], "objects": objects})

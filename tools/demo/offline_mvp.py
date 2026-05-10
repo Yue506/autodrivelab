@@ -292,16 +292,32 @@ def category_to_class(category: str) -> str:
     return RISK_CATEGORIES.get(category, "unknown")
 
 
-def adas_level(distance: float) -> tuple[int, str]:
-    if distance <= 4.0:
-        return 4, "FCW_EMERGENCY"
-    if distance <= 8.0:
-        return 3, "FCW_WARNING"
-    if distance <= 15.0:
-        return 2, "FRONT_OBJECT_ATTENTION"
-    if distance <= 30.0:
-        return 1, "FRONT_OBJECT_NEARBY"
-    return 0, "ADAS_NORMAL"
+def adas_level_from_ttc(ttc: float | None) -> tuple[int, str, str]:
+    if ttc is None or not math.isfinite(ttc):
+        return 0, "ADAS_NORMAL", "前方无明显碰撞风险"
+    if ttc < 3.0:
+        return 4, "FCW_EMERGENCY", "TTC 小于 3 秒，触发前向紧急碰撞风险"
+    if ttc <= 5.0:
+        return 3, "FCW_POTENTIAL", "TTC 在 3 到 5 秒内，触发前向潜在碰撞风险"
+    return 0, "ADAS_NORMAL", "前方目标 TTC 未达到告警阈值"
+
+
+def compute_ttc(
+    object_id: str,
+    timestamp: int,
+    distance: float,
+    prev_distance_by_id: dict[str, tuple[int, float]],
+) -> tuple[float | None, float]:
+    prev = prev_distance_by_id.get(object_id)
+    relative_speed = 0.0
+    ttc = None
+    if prev:
+        dt = max((timestamp - prev[0]) / 1e6, 1e-3)
+        relative_speed = (prev[1] - distance) / dt
+        if relative_speed > 0.1:
+            ttc = distance / relative_speed
+    prev_distance_by_id[object_id] = (timestamp, distance)
+    return ttc, relative_speed
 
 
 def generate_adas(args: argparse.Namespace) -> None:
@@ -319,9 +335,10 @@ def generate_adas(args: argparse.Namespace) -> None:
             class_name = category_to_class(obj["category_name"])
             x, y, z = [float(v) for v in obj["translation_ego"]]
             distance = math.hypot(x, y)
-            risk_level, _ = adas_level(distance)
             is_front = class_name != "unknown" and x > 0.0 and abs(y) < args.front_y_abs_max
             object_id = obj["instance_token"] or obj["sample_annotation_token"]
+            ttc, relative_speed = compute_ttc(object_id, frame["timestamp"], distance, prev_distance_by_id) if is_front else (None, 0.0)
+            risk_level, _, _ = adas_level_from_ttc(ttc)
             row = {
                 "object_id": object_id,
                 "class_name": class_name,
@@ -331,10 +348,16 @@ def generate_adas(args: argparse.Namespace) -> None:
                 "distance": distance,
                 "is_front_risk": bool(is_front and risk_level > 0),
                 "risk_level": risk_level if is_front else 0,
+                "relative_speed": relative_speed if is_front else 0.0,
+                "ttc": ttc if is_front else None,
                 "size": obj["size"],
             }
             objects.append(row)
-            if row["is_front_risk"] and (best is None or distance < best["distance"]):
+            if row["is_front_risk"] and (
+                best is None
+                or row["risk_level"] > best["risk_level"]
+                or (row["risk_level"] == best["risk_level"] and (row["ttc"] or float("inf")) < (best["ttc"] or float("inf")))
+            ):
                 best = row
         level = 0
         event_type = "ADAS_NORMAL"
@@ -342,20 +365,9 @@ def generate_adas(args: argparse.Namespace) -> None:
         ttc = None
         relative_speed = 0.0
         if best is not None:
-            level, event_type = adas_level(best["distance"])
-            if level >= 3:
-                description = "前方目标距离过近，请减速"
-            elif level == 2:
-                description = "前方目标较近，请保持注意"
-            elif level == 1:
-                description = "前方目标进入关注区域"
-            prev = prev_distance_by_id.get(best["object_id"])
-            if prev:
-                dt = max((frame["timestamp"] - prev[0]) / 1e6, 1e-3)
-                relative_speed = (prev[1] - best["distance"]) / dt
-                if relative_speed > 0.1:
-                    ttc = best["distance"] / relative_speed
-            prev_distance_by_id[best["object_id"]] = (frame["timestamp"], best["distance"])
+            ttc = best["ttc"]
+            relative_speed = best["relative_speed"]
+            level, event_type, description = adas_level_from_ttc(ttc)
         status_rows.append(
             {
                 "frame_index": frame["frame_index"],
