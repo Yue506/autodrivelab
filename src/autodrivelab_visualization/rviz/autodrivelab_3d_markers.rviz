@@ -1,0 +1,45 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Enabled: true
+      Name: Grid
+      Plane: XY
+      Cell Size: 1
+      Alpha: 0.35
+      Color: 160; 160; 160
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: AutoDriveLab Objects
+      Topic:
+        Value: /autodrivelab/rviz/objects
+  Enabled: true
+  Global Options:
+    Background Color: 30; 32; 36
+    Fixed Frame: base_link
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 26
+      Focal Point:
+        X: 10
+        Y: 0
+        Z: 0
+      Name: Orbit
+      Pitch: 0.9
+      Yaw: 3.14
+Window Geometry:
+  Height: 900
+  Width: 1440
+  X: 60
+  Y: 60
